@@ -1,0 +1,187 @@
+!pip install gradio
+!pip install transformers
+!pip install sentence-transformers
+from transformers import AutoTokenizer, AutoModelForMaskedLM
+from sentence_transformers import SentenceTransformer
+from sklearn.metrics.pairwise import cosine_similarity
+
+import torch
+
+tokenizer = AutoTokenizer.from_pretrained("yeongjoon/Kconvo-roberta")
+model_sentence = SentenceTransformer("bongsoo/albert-small-kor-sbert-v1.1")
+
+import random
+import gradio as gr
+from sklearn.metrics.pairwise import cosine_similarity
+from transformers import AutoTokenizer
+tokenizer = AutoTokenizer.from_pretrained("beomi/kcbert-base")
+class hompage():
+  def __init__(self,tokenizer):
+    print("홈페이지에 오신걸 환영합니다.\n")
+    # 버튼 입력으로 이를 통해서 원하는 동작을 할 수 있게 하고자 함
+    print("테스트:0, 훈련:1, 내정보:2")
+    self.tokenizer = tokenizer
+
+    try:
+      button_num = int(input("원하는 동작을 입력하세요: \n"))
+      if button_num == 0 :
+        self.open()
+      elif button_num == 1:
+        self.train()
+      elif button_num == 2:
+        self.my()
+    except:
+      print("정확히 입력해주세요 \n")
+
+
+
+  # 테스트 창
+  def open(self):
+    print("테스트 창입니다.\n")
+    count = 0
+    # 문제집 리스트
+    quiz = {
+        "talk" : {
+            "level1" : ["사과",'바나나',"수박"],
+            "level2" : ["사과",'바나나',"수박"],
+            "level3" : ["사과",'바나나',"수박"]
+        },
+        "listen" : {
+            "level1" : ["""여자 : 이거 뭐야.\n남자 : 노래 좋지?\n남자 : 어제 밤 새 유튜브 보다가 찾았어. 20년 전 노래래. \n여자 : 뭐... 나쁘지 않네."""],
+            "level2" : ["사과",'바나나',"수박"],
+            "level3" : ["사과",'바나나',"수박"]
+        },
+        "read" : {
+            "level1" : ["""여자 : 이거 뭐야.\n남자 : 노래 좋지?\n남자 : 어제 밤 새 유튜브 보다가 찾았어. 20년 전 노래래. \n여자 : 뭐... 나쁘지 않네."""],
+            "level2" : ["사과",'바나나',"수박"],
+            "level3" : ["사과",'바나나',"수박"]
+        }
+    }
+    answer = {
+        "talk" : {
+            "level1" :["사과",'바나나',"수박"],
+            "level2" : ["사과",'바나나',"수박"],
+            "level3" : ["사과",'바나나',"수박"]
+        },
+        "listen" : {
+            "level1" : ["어제 밤 새 유튜브 보다가 찾았어."],
+            "level2" : ["사과",'바나나',"수박"],
+            "level3" : ["사과",'바나나',"수박"]
+        },
+        "read" : {
+            "level1" : ["어제 밤 새 유튜브 보다가 찾았어."],
+            "level2" : ["사과",'바나나',"수박"],
+            "level3" : ["사과",'바나나',"수박"]
+        }
+    }
+    # 함수 확인중
+    try:
+      button = int(input("실행:0, 종료:1: \n"))
+      if button ==0:
+        self.open_test(quiz,answer)
+      elif button ==1:
+        self.hompage()
+    except:
+      print("정확히 입력하세요")
+
+
+
+
+  # 테스트 창에 쓰일 문제창
+  def open_test(self,quiz,answer):
+    total_score = 0
+    for alpha in ["talk","listen","read"]:
+      dic = {
+          "talk" : ["말하기","듣고","그대로 말"],
+          "listen" : ["듣기","듣고","상황을 말"],
+          "read" : ["읽기","읽고","요약"]
+      }
+      for i in range(1,4):
+        # 1번 문제
+        if i%3 ==1:
+          print(f"유형은 {dic[alpha][0]} 문제입니다. 잘{dic[alpha][1]} {dic[alpha][2]}해주세요 ")
+          print("1번 문제(level1) 입니다.")
+          num = random.choice(range(len(quiz[alpha]["level1"])))
+          print(quiz[alpha]["level1"][num])
+          # 문제 입력 칸
+          text1 = answer[alpha]["level1"][num]
+          text2 = input("답를 입력하세요: ")
+          score = self.calculate_similarity(text1,text2)
+          total_score += int(self.check_score(int(score)))
+          print("현재점수: ",total_score,"점 \n")
+        # 2번 문제
+        elif i%3 ==2:
+          print("2번 문제(level2) 입니다.")
+          num = random.choice(range(len(quiz[alpha]["level2"])))
+          print(quiz[alpha]["level2"][num])
+          # 문제 입력 칸
+          text1 = answer[alpha]["level2"][num]
+          text2 = input("답를 입력하세요: ")
+          score = self.calculate_similarity(text1,text2)
+          total_score += self.check_score(int(score))
+          print("현재점수: ",total_score,"점 \n")
+
+        #3번 문제
+        else:
+          print("3번 문제(level3) 입니다.")
+          num = random.choice(range(len(quiz[alpha]["level3"])))
+          print(quiz[alpha]["level3"][num])
+          # 문제 입력 칸
+          text1 = answer[alpha]["level3"][num]
+          text2 = input("답를 입력하세요: ")
+          score = self.calculate_similarity(text1,text2)
+          total_score += self.check_score(int(score))
+          print("현재점수: ",total_score,"점 \n")
+    print("총점수는 ",total_score, "점 입니다.")
+    return total_score
+
+
+  # 유사도 점수 구해주는 함수
+  def calculate_similarity(self,text1, text2):
+    embeddings = []
+    tokenizer_cos = self.tokenizer
+    for i in [text1, text2]:
+      embeddings.append(tokenizer_cos(i,max_length = 32, padding='max_length' ,truncation=True))
+    similarity = cosine_similarity([embeddings[0]["input_ids"]], [embeddings[1]["input_ids"]])
+    similarity_score = similarity[0][0]
+    return similarity_score
+
+  # 정답 여부
+  def check_score(self,score):
+    if score >0.9:
+      print("정답입니다.")
+      return 1
+    else:
+      print('오답입니다.')
+      return 0
+
+
+
+
+
+
+
+
+    # 훈련 창
+  def train(self):
+    print("훈련 창입니다.")
+
+
+
+
+
+
+
+
+
+    # 내정보 창
+  def my(self):
+    print("내 정보 창입니다.")
+
+
+hompage(tokenizer)
+
+
+
+
+
