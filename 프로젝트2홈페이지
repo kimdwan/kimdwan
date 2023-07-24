@@ -5,6 +5,7 @@ from transformers import AutoTokenizer, AutoModelForMaskedLM
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 
+
 import random
 import matplotlib.pyplot as plt
 from sklearn.metrics.pairwise import cosine_similarity
@@ -13,31 +14,74 @@ from IPython.display import Audio,display
 import matplotlib.pyplot as plt
 import time
 from PIL import Image
+import random
+
 tokenizer = AutoTokenizer.from_pretrained("beomi/kcbert-base")
 
 class hompage():
   def __init__(self,tokenizer,dictionary):
-
+    # 유저의 점수 
+    self.total_score = 0
     print("홈페이지에 오신걸 환영합니다.\n")
     # 버튼 입력으로 이를 통해서 원하는 동작을 할 수 있게 하고자 함
-    print("테스트:0, 훈련:1, 내정보:2")
+
     self.tokenizer = tokenizer
     self.dictionary = dictionary
+    # 듣기 순서는 듣기,문제, 정답 
+    self.dictionary_1 = {
+        "word" : [(i1,i2[0],i2[1])  for i1,i2 in zip(level1_dic_listen["word"],level1_dic_ans_listen["word"])],
+        "sent" : [(i1,i2[0],i2[1])  for i1,i2 in zip(level1_dic_listen["sent"],level1_dic_ans_listen["sent"])]
+    }
+    self.dictionary_2 = {
+        "conv" :[(i1,i2[0],i2[1])  for i1,i2 in zip(level2_dic_listen["conv"],level2_dic_ans_listen["conv"])],
+        "mono" : [(i1,i2[0],i2[1])  for i1,i2 in zip(level2_dic_listen["mono"],level2_dic_ans_listen["mono"])]
+    }
+    self.dictionary_3 = {
+        "conv" :[(i1,i2[0],i2[1])  for i1,i2 in zip(level3_dic_listen["conv"],level3_dic_ans_listen["conv"])],
+        "mono" : [(i1,i2[0],i2[1])  for i1,i2 in zip(level3_dic_listen["mono"],level3_dic_ans_listen["mono"])]
+    }
+
+    self.dictionary_1_read = {
+        "word" : [(i1,i2[0],i2[1])  for i1,i2 in zip(level1_dic_read["word"],level1_dic_ans_read["word"])],
+        "sent" : [(i1,i2[0],i2[1])  for i1,i2 in zip(level1_dic_read["sent"],level1_dic_ans_read["sent"])]
+    }
+    self.dictionary_2_read  = {
+        "find" :[(i1,i2[0],i2[1])  for i1,i2 in zip(level2_dic_read["find"],level2_dic_ans_read["find"])],
+        "mask" : [(i1,i2[0],i2[1])  for i1,i2 in zip(level2_dic_read["mask"],level2_dic_ans_read["mask"])]
+    }
+    self.dictionary_3_read  = {
+        "conv" :[(i1,i2[0],i2[1])  for i1,i2 in zip(level3_dic_read["conv"],level3_dic_ans_read["conv"])],
+        "mono" : [(i1,i2[0],i2[1])  for i1,i2 in zip(level3_dic_read["mono"],level3_dic_ans_read["mono"])]
+    }
+    self.dictionary_1_talk = {
+        "audio" : [(i1,i2[0],i2[1])  for i1,i2 in zip(level1_dic_talk["audio"],level1_dic_ans_talk["audio"])],
+        "image" : [(i1,i2[0],i2[1])  for i1,i2 in zip(level1_dic_talk["image"],level1_dic_ans_talk["image"])]
+    }
+    self.dictionary_2_talk  = {
+        "audio" :[(i1,i2[0],i2[1])  for i1,i2 in zip(level2_dic_talk["audio"],level2_dic_ans_talk["audio"])],
+        "image" : [(i1,i2[0],i2[1])  for i1,i2 in zip(level2_dic_talk["image"],level2_dic_ans_talk["image"])]
+    }
 
 
+
+
+  
     while 1:
       try:
-        button_num = int(input("원하는 동작을 입력하세요: \n"))
-        point = 0
+        print("테스트:0, 훈련:1, 내정보:2,종료:100")        
+        print("원하는 동작을 입력하세요: \n")
+        button_num = int(input(""))
         if button_num == 0 :
-          point = self.open()
-
+          self.open()
         elif button_num == 1:
-          self.train(point)
+          self.train(self.total_score)
         elif button_num == 2:
           self.my()
+        elif button_num == 100:
+          break
       except:
         print("정확히 입력해주세요 \n")
+
 
 
 
@@ -91,21 +135,22 @@ class hompage():
         }
     }
     # 함수 확인중
-    try:
-      button = int(input("실행:0, 종료:1: \n"))
-      if button ==0:
-        self.open_test(quiz,answer)
-      elif button ==1:
-        self.hompage()
-    except:
-      print("정확히 입력하세요")
+    while 1:
+      try:
+        button = int(input("실행:0, 종료:1: \n"))
+        if button ==0:
+          total_score = self.open_test(quiz,answer)
+          self.total_score = total_score
+        elif button == 1:
+          break
+      except:
+        print("정확히 입력하세요")
 
 
 
 
   # 테스트 창에 쓰일 문제창
   def open_test(self,quiz,answer):
-    total_score = 0
     for alpha in ["talk","listen","read"]:
       dic = {
           "talk" : ["말하기","듣고","그대로 말"],
@@ -136,11 +181,13 @@ class hompage():
 
           # 문제 입력 칸
           text1 = answer[alpha]["level1"][num]
-          text2 = input("답를 입력하세요: ")
+          print("답을 입력하세요")
+          text2 = input("")
           score = self.calculate_similarity(text1,text2)
-          total_score += int(self.check_score(float(score)))
-          print("현재점수: ",total_score,"점 \n")
+          self.total_score += int(self.check_score(float(score)))
+          print("현재점수: ",self.total_score,"점 \n")
           plt.close()
+        
         # 2번 문제
         elif i%3 ==2:
           print("2번 문제(level2) 입니다.")
@@ -158,11 +205,13 @@ class hompage():
 
           # 문제 입력 칸
           text1 = answer[alpha]["level2"][num]
-          text2 = input("답를 입력하세요: ")
+          print("답을 입력하세요")
+          text2 = input("")
           score = self.calculate_similarity(text1,text2)
-          total_score += int(self.check_score(float(score)))
-          print("현재점수: ",total_score,"점 \n")
+          self.total_score += int(self.check_score(float(score)))
+          print("현재점수: ",self.total_score,"점 \n")
           plt.close()
+        
         #3번 문제
         else:
           num = random.choice(range(len(quiz[alpha]["level3"])))
@@ -177,12 +226,14 @@ class hompage():
 
           # 문제 입력 칸
           text1 = answer[alpha]["level3"][num]
-          text2 = input("답를 입력하세요: ")
+          print("답을 입력하세요")
+          text2 = input("")
           score = self.calculate_similarity(text1,text2)
-          total_score += self.check_score(float(score))
-          print("현재점수: ",total_score,"점 \n")
-    print("총점수는 ",total_score, "점 입니다.")
-    return total_score
+          self.total_score += self.check_score(float(score))
+          print("현재점수: ",self.total_score,"점 \n")
+    
+    print("총점수는 ",self.total_score, "점 입니다.")
+    return self.total_score
 
 
   # 유사도 점수 구해주는 함수
@@ -207,17 +258,175 @@ class hompage():
 
 
     # 훈련 창
-  def train(self,point):
-    print("훈련 창입니다.")
-    print("당신의 총점수는: ",point,"입니다. ")
-    if point > 6:
-       print("당신의 권장 레벨은 3입니다.\n")
-    elif point >3:
-      print("당신의 권장 레벨은 2입니다.\n")
-    else:
-      print("당신의 권장 레벨은 1입니다.\n")
+  def train(self, point):
+      print("훈련 창입니다.")
+      print("당신의 총점수는:", point, "입니다.")
+      if point > 6:
+        print("당신의 권장 레벨은 3입니다.\n")
+      elif point > 3:
+          print("당신의 권장 레벨은 2입니다.\n")
+      else:
+          print("당신의 권장 레벨은 1입니다.\n")
 
-    input("레벨은 선택하세요 레벨1:0,레벨2:1,레벨3:2")
+      while True:
+          print("레벨은 선택하세요 레벨1:1, 레벨2:2, 레벨3:3, 종료:100")
+          level = int(input(""))
+          if level == 100:
+              break
+          elif level == 1:
+              print("훈련하고 싶은 요소 - 듣기:1, 읽기:2, 말하기:3, 끝내기:100")
+              alpha = int(input(""))
+              if alpha == 1:
+                  print("단어:1, 문장:2, 끝내기:100")
+                  print("")
+                  alpha_1 = int(input(""))
+                  if alpha_1 == 1:
+                      self.answer_box_listen(self.dictionary_1, 'word')
+                  elif alpha_1 == 2:
+                      self.answer_box_listen(self.dictionary_1, 'sent')
+                  elif alpha_1 == 100:
+                      break
+                  else:
+                      print("제대로 입력해 주시기 바랍니다.")
+              elif alpha == 2:
+                  print("단어:1, 문장:2, 끝내기:100")
+                  alpha_1 = int(input(""))
+                  if alpha_1 ==1:
+                      self.answer_box_read(self.dictionary_1_read, 'word')
+                  elif alpha_1 == 2:
+                      self.answer_box_read(self.dictionary_1_read, 'sent')    
+                  elif alpha_1 == 100:
+                      break                               
+              elif alpha == 3:
+                  print("단어:1, 문장:2, 끝내기:100")
+                  alpha_1 = int(input(""))
+                  if alpha_1 ==1:
+                      self.answer_box_talk(self.dictionary_1_talk, 'audio')
+                  elif alpha_1 == 2:
+                      self.answer_box_read(self.dictionary_1_talk, 'image')    
+                  elif alpha_1 == 100:
+                      break                               
+              elif alpha == 100:
+                  break
+                  
+          elif level == 2:
+              print("훈련하고 싶은 요소 - 듣기:1, 읽기:2, 말하기:3,끝내기:100")
+              alpha = int(input(""))
+              if alpha == 1:
+                  print("대화:1, 독백:2")
+                  alpha_1 = int(input(""))
+                  if alpha_1 == 1:
+                      self.answer_box_listen(self.dictionary_2, 'conv')
+                  elif alpha_1 == 2:
+                      self.answer_box_listen(self.dictionary_2, 'mono')
+                  elif alpha_1 == 100:
+                      break
+                  else:
+                      print("제대로 입력해 주시기 바랍니다.")
+              elif alpha == 2:
+                  print("마스크:1, 답찾기:2, 끝내기:100")
+                  alpha_1 = int(input(""))
+                  if alpha_1 ==1:
+                      self.answer_box_read(self.dictionary_2_read, 'mask')
+                  elif alpha_1 == 2:
+                      self.answer_box_read(self.dictionary_2_read, 'find')    
+                  elif alpha_1 == 100:
+                      break
+              elif alpha == 3:
+                  print("단어:1, 문장:2, 끝내기:100")
+                  alpha_1 = int(input(""))
+                  if alpha_1 ==1:
+                      self.answer_box_talk(self.dictionary_2_talk, 'audio')
+                  elif alpha_1 == 2:
+                      self.answer_box_talk(self.dictionary_2_talk, 'image')    
+                  elif alpha_1 == 100:
+                      break                               
+                  elif alpha == 100:
+                    break
+              elif alpha == 100:
+                    break
+          elif level == 3:
+              print("훈련하고 싶은 요소 - 듣기:1, 읽기:2, 말하기:3, 끝내기:100")
+              alpha = int(input(""))
+              if alpha == 1:
+                  print("대화:1, 독백:2")
+                  alpha_1 = int(input(""))
+                  if alpha_1 == 1:
+                      self.answer_box_listen(self.dictionary_3, 'conv')
+                  elif alpha_1 == 2:
+                      self.answer_box_listen(self.dictionary_3, 'mono')
+                  elif alpha_1 == 100:
+                      break
+                  else:
+                      print("제대로 입력해 주시기 바랍니다.")
+              elif alpha == 2:
+                  print("대화:1, 독백:2")
+                  alpha_1 = int(input(""))
+                  if alpha_1 ==1:
+                      self.answer_box_read(self.dictionary_3_read,'conv')
+                  elif alpha_1 == 2:
+                      self.answer_box_read(self.dictionary_3_read,'mono')    
+                  elif alpha_1 == 100:
+                      break
+              elif alpha == 100:
+                  break
+
+
+
+  def answer_box_listen(self, answer, phase):
+    answer = answer[phase]
+    display(answer[0][0])
+    time.sleep(1)
+    print(answer[0][1],"\n")
+    print('정답을 입력하세요')
+    user_answer = input("")
+    score = self.calculate_similarity(user_answer, answer[0][2])
+    point = int(self.check_score(float(score)))
+    self.total_score  += self.check_score(point)
+
+  def answer_box_read(self, answer, phase):
+    answer = answer[phase]
+    try:
+      plt.imshow(answer[0][0])
+      plt.axis("off")
+      plt.show()
+      plt.pause(1)
+    except:
+      print("\n")
+      print(answer[0][0].read())
+      print("\n")
+    print(answer[0][1],"\n")
+    print("정답을 입력하세요")
+    user_answer = input("")
+    score = self.calculate_similarity(user_answer, answer[0][2])
+    point = int(self.check_score(float(score)))
+    self.total_score  += self.check_score(point)
+
+  def answer_box_talk(self, answer, phase):
+    answer = answer[phase]
+    try:
+      display(answer[0][0])
+      time.sleep(1)
+    except:
+      plt.imshow(answer[0][0])
+      plt.axis("off")
+      plt.show()
+      plt.pause(1)           
+    print(answer[0][1],"\n")
+    print("정답을 입력하세요: ")
+    user_answer = input("")
+    score = self.calculate_similarity(user_answer, answer[0][2])
+    point = int(self.check_score(float(score)))
+    self.total_score  += self.check_score(point)
+
+
+
+
+
+    
+
+
+
 
 
 
@@ -233,4 +442,13 @@ class hompage():
     # 내정보 창
   def my(self):
     print("내 정보 창입니다.")
+
+
+
+
+
+
+
+
+
 
