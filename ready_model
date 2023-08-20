@@ -1,0 +1,117 @@
+!pip install transformers
+!pip install sentence_transformers
+!pip install -U openai-whisper
+!pip install git+https://github.com/openai/whisper.git
+!pip install --upgrade --no-deps --force-reinstall git+https://github.com/openai/whisper.git
+!pip install openai
+!pip install git+https://github.com/huggingface/transformers
+!pip install jiwer
+
+
+#모델들 정리
+import librosa
+from IPython.display import Audio,display,Javascript
+import time
+from sklearn.metrics.pairwise import cosine_similarity
+from google.colab import output
+from base64 import b64decode
+import whisper
+from sentence_transformers import SentenceTransformer
+from transformers import AutoModel,AutoTokenizer, T5ForConditionalGeneration,MarianMTModel
+from transformers import RobertaForMaskedLM, BartForConditionalGeneration,RobertaForQuestionAnswering
+from transformers import WhisperProcessor,WhisperForConditionalGeneration,GPTNeoXForCausalLM,BartForConditionalGeneration
+from transformers import  RobertaForSequenceClassification
+
+import numpy as np
+import os
+import openai
+import torch
+import requests
+
+# 음성녹음
+RECORD = """
+const sleep  = time => new Promise(resolve => setTimeout(resolve, time))
+const b2text = blob => new Promise(resolve => {
+  const reader = new FileReader()
+  reader.onloadend = e => resolve(e.srcElement.result)
+  reader.readAsDataURL(blob)
+})
+var record = time => new Promise(async resolve => {
+  stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+  recorder = new MediaRecorder(stream)
+  chunks = []
+  recorder.ondataavailable = e => chunks.push(e.data)
+  recorder.start()
+  await sleep(time)
+  recorder.onstop = async ()=>{
+    blob = new Blob(chunks)
+    text = await b2text(blob)
+    resolve(text)
+  }
+  recorder.stop()
+})
+"""
+def record(sec=3):
+  display(Javascript(RECORD))
+  s = output.eval_js('record(%d)' % (sec*1000))
+  b = b64decode(s.split(',')[1])
+  with open('audio.wav','wb') as f:
+    f.write(b)
+  return 'audio.wav'  # or webm ?
+
+#음성 인식 모델
+whisper_model = whisper.load_model("medium")
+
+# 임베딩 모델
+Sentence_model = SentenceTransformer('sentence-transformers/all-mpnet-base-v1')
+
+#마스크 모델
+mask_path = "yeongjoon/Kconvo-roberta"
+mask_model = RobertaForMaskedLM.from_pretrained(mask_path)
+mask_tokenizer = AutoTokenizer.from_pretrained(mask_path)
+
+# 대화요약 모델
+sentence_path = "alaggung/bart-r3f"
+sentence_model = BartForConditionalGeneration.from_pretrained(sentence_path)
+sentence_tokenizer = AutoTokenizer.from_pretrained(sentence_path)
+
+# 문장 요약 모델
+
+sum_path = "kimdwan/t5-base-korean-summarize-LOGAN"
+sum_model = T5ForConditionalGeneration.from_pretrained(sum_path)
+sum_tokenizer = AutoTokenizer.from_pretrained(sum_path)
+
+
+#이게 진짜 질의응답이기는 함
+que_path = "kimdwan/klue-roberta-finetuned-korquad-LOGAN"
+que_model = RobertaForQuestionAnswering.from_pretrained(que_path)
+que_tokenizer = AutoTokenizer.from_pretrained(que_path)
+
+# 언어번역 모델
+translate_path = "Helsinki-NLP/opus-mt-ko-en"
+translate_model = MarianMTModel.from_pretrained(translate_path)
+translate_tokenizer =AutoTokenizer.from_pretrained(translate_path)
+
+#음성 번역 모델
+whisper_path = "openai/whisper-small"
+whisper_tlanslate_model = WhisperForConditionalGeneration.from_pretrained(whisper_path)
+whisper_processor = WhisperProcessor.from_pretrained(whisper_path,language="ko", task="transcribe")
+
+# gpt3.5 모델
+key = "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"
+openai.api_key = key
+
+# 문장생성용 모델
+path = "kimdwan/polyglot-ko-1.3b-Logan"
+generate_model = GPTNeoXForCausalLM.from_pretrained(path)
+generate_tokenizer = AutoTokenizer.from_pretrained(path)
+
+# 문제 생성용 모델,
+qe_make_path = "Sehong/kobart-QuestionGeneration"
+qa_make_model = BartForConditionalGeneration.from_pretrained(qe_make_path)
+qa_make_tokenizer = AutoTokenizer.from_pretrained(qe_make_path)
+
+# 음성 분류 모델
+music_genre_path = "luiz826/roberta-to-music-genre"
+class_music_model = RobertaForSequenceClassification.from_pretrained(music_genre_path)
+class_music_tokenizer = AutoTokenizer.from_pretrained(music_genre_path)
