@@ -1,0 +1,941 @@
+import os
+# 유저 랭킹 저장 하는 저장소
+os.makedirs("user_point")
+os.makedirs('user_audio')
+
+# 메인코드
+import random
+import time
+from PIL import Image
+import matplotlib.pyplot as plt
+from google.colab import files
+import re
+import requests
+from bs4 import BeautifulSoup
+import glob
+
+
+class Koeic():
+  def __init__(self, test_text, practice_text):
+    print("저희 홈페이지에 접속해주셔서 감사합니다.")
+    self.test_text = test_text
+    self.practice_text = practice_text
+    print("당신의 이름을 적으세요")
+    name = input("")
+    self.name = name
+    print("반갑습니다.",name,'님')
+
+  def start_page(self):
+    user_point = 0
+    while True:
+        print("\n원하는 작업을 선택하십시오.")
+        print("1. 시험보기")
+        print("2. 학습하기")
+        print("3. 질문하기")
+
+        choice = input()
+
+        if choice == 'exit':
+            print("방문해주셔서 감사합니다.")
+            break
+
+        choices = {
+            "1": self.test,
+            "2": self.practice,
+            "3" : self.question
+        }
+
+        if choice in choices:
+            if choice == "1":
+              score = choices[choice](self.test_text)
+              self.user_rank(score)
+
+            elif choice == "2":
+              choices[choice](self.practice_text)
+            else:
+              choices[choice]()
+
+        else:
+            print("올바르게 입력해주시길 바랍니다.")
+
+
+    # 시험보는 코드
+  def test(self,text):
+    user_score = 0
+    user_point = {"듣기":0,"문해력":0,"말하기":0,"추론":0,"문법":0}
+    # 시험지는 text이다.
+    # 시험지 타입은 6가지 이다. 아래 참고
+    Text = self.test_text
+    random.shuffle(Text)
+    Text = Text[0]
+    for key in Text.keys():
+      text = Text[key]
+      if key == "type1":
+        tape,point = self.voice_talk(text)
+        user_point[tape] += point
+        user_score += point
+      elif key == "type2":
+        tape,point = self.sentence_block(text)
+        user_point[tape] += point
+        user_score += point
+      elif key == "type3":
+        tape,point = self.sentence_voice(text)
+        user_point[tape] += point
+        user_score += point
+      elif key == "type4":
+        tape,point = self.voice_block(text)
+        user_point[tape] += point
+        user_score += point
+      elif key == "type5":
+        tape,point = self.ficture_block(text)
+        user_point[tape] += point
+        user_score += point
+      elif key == "type6":
+        tape,point = self.sentence_line(text)
+        user_point[tape] += point
+        user_score += point
+    print(user_score)
+    check_list_power = ['듣기',"문해력","말하기","추론","문법"]
+    user_feed_back = []
+    for name in check_list_power:
+      if user_point[name] ==0:
+        user_feed_back.append(name)
+    print("당신이 부족한 점은: ",user_feed_back)
+    return  user_score
+
+  # 랭킹 매겨주는 코드
+  def user_rank(self,score):
+    with open(f"/content/user_point/{self.name}.txt","w") as f:
+      f.write(str(score))
+      f.write("\n")
+      f.write(self.name)
+    user_path = glob.glob("/content/user_point/*")
+    any_dic = {"point":[],"name":[]}
+    for i in user_path:
+      point = self.get_line(i,1)
+      any_name = self.get_line(i,2)
+      any_dic["point"].append(int(point))
+      any_dic["name"].append(any_name)
+    rank = np.argsort(-np.array(any_dic["point"]))[:5]
+    print("현재 랭킹은?")
+    print()
+    for n,i in enumerate(rank):
+      print(n+1,"위: ",any_dic["name"][i])
+
+
+
+  def get_line(self,filename,num):
+    with open(filename, 'r') as f:
+        lines = f.readlines()  # 모든 라인을 읽어옴
+        if len(lines) >= num:   # 두 번째 라인이 존재하는지 확인
+            return lines[num-1]   # 두 번째 라인 반환
+        else:
+            return None  # 파일에 두 줄 미만이라면 None 반환
+
+
+
+
+  #음성녹음
+  def change_audio(self,sec):
+    print(f"{sec}초간 말하시오")
+    print("한번만 말해도 됩니다.")
+    path = record(sec)
+    text = whisper_model.transcribe(path)
+    return text["text"]
+
+  # 타입1 듣기-말하기
+  def voice_talk(self,text):
+    text_ = text["text"]
+    que = text["que"]
+    ans = text["ans"]
+    sec = text['sec']
+    print(que)
+    music = librosa.load(text_,sr=16000)
+    display(Audio(music[0],rate=16000,autoplay=True))
+    num = music[0].shape[0] / 16000
+    time.sleep(num)
+    user_anser = self.change_audio(sec)
+    token1  = Sentence_model.encode(user_anser).reshape(1,-1)
+    token2 = Sentence_model.encode(ans).reshape(1,-1)
+    return text["type"],self.find_score(round(cosine_similarity(token1,token2)[0][0],2))
+
+  # 타입2 문장 객관식 문항
+  def sentence_block(self,text):
+    text_ = text["text"]
+    que = text["que"]
+    block = text["block"]
+    ans = text['ans']
+    print(text_)
+    print()
+    print(que)
+    print()
+    print("정답을 입력하세요: ")
+    for n,i in enumerate(block):
+      print(n+1,"번: ",i)
+    try:
+      answer = int(input(""))
+    except:
+      print("1~4번호 안에 숫자를 입력해주세요.")
+    if answer == ans:
+      print("정답입니다.")
+      return text["type"],1
+    elif answer >4 :
+      print("1~4번호 안에 숫자를 입력해주세요.")
+    elif answer != ans :
+      print("오답입니다.")
+      print("정답은: ",ans)
+      return text["type"],0
+
+  # type3 문장 - 말하기
+  def sentence_voice(self,text):
+    text_ = text['text']
+    que = text["que"]
+    ans = text["ans"]
+    sec = text["sec"]
+    print(text_)
+    print()
+    print(que)
+    print()
+    answer = self.change_audio(sec)
+    token1 = Sentence_model.encode(answer).reshape(1,-1)
+    token2 = Sentence_model.encode(ans).reshape(1,-1)
+    return text["type"],self.find_score(round(cosine_similarity(token1,token2)[0][0],2))
+
+  # type4 듣기 - 객관식
+  def voice_block(self,text):
+    text_ = text["text"]
+    que = text["que"]
+    block = text["block"]
+    ans = text["ans"]
+    music = librosa.load(text_,sr=16000)[0]
+    num = len(music) / 16000
+    print(que)
+    display(Audio(music,rate=16000,autoplay=True))
+    time.sleep(num)
+    for n,i in enumerate(block):
+      print(n+1,"번: ",i)
+    print("정답을 입력하세요")
+    try:
+      answer = int(input(""))
+    except:
+      print("1~4번호 안에 숫자를 입력해주세요.")
+    if answer == ans:
+      print("정답입니다.")
+      return text["type"],1
+    elif answer >4 :
+      print("1~4번호 안에 숫자를 입력해주세요.")
+    elif answer != ans :
+      print("오답입니다.")
+      print("정답은: ",ans)
+      return text["type"],0
+
+  # type5 는 그림 객관식
+  def ficture_block(self,text):
+    text_ = text["text"]
+    que = text['que']
+    block = text["block"]
+    ans = text["ans"]
+    display(Image.open(text_))
+    time.sleep(2)
+    print(que)
+    for n,i in enumerate(block):
+      print(n+1,"번: ",i)
+    print("정답을 입력하세요")
+    try:
+      answer = int(input(""))
+    except:
+      print("1~4번호 안에 숫자를 입력해주세요.")
+    if answer == ans:
+      print("정답입니다.")
+      return text["type"],1
+    elif answer >4 :
+      print("1~4번호 안에 숫자를 입력해주세요.")
+    elif answer != ans :
+      print("오답입니다.")
+      print("정답은: ",ans)
+      return text["type"],0
+
+  # type6는 문장 주관식
+  def sentence_line(self, text):
+    text_ = text["text"]
+    que = text['que']
+    ans = text["ans"]
+    print(text_)
+    print()
+    print(que)
+    print()
+    print("정답을 입력하세요: ")
+    answer = input("")
+    token1 = Sentence_model.encode(answer).reshape(1,-1)
+    token2 = Sentence_model.encode(ans).reshape(1,-1)
+    return text["type"],self.find_score(round(cosine_similarity(token1,token2)[0][0],2))
+
+  # 유사도에 경우 점수를 측정하는 방식
+  def find_score(self,score):
+    if score > 0.89:
+      print("정답입니다.")
+      return 1
+    else:
+      print("오답입니다.")
+      return 0
+
+  def practice(self, text):
+    while True:
+        print("\n원하는 작업을 선택하세요.")
+        print("1: 기존문제, 2:본인문제,3:발음대결")
+        choice = input()
+
+        if choice == "exit":
+            break
+
+        if choice == "1":
+            self.baseline(text)
+        elif choice == "2":
+            self.selfline()
+        elif choice == "3":
+            self.voice_vs()
+        else:
+            print("제대로 입력하십시오.")
+  # 우리가 제시하는 문제로 학습하는 코드
+  def baseline(self,text):
+    print("풀고 싶은 문제를 고르세요. 1.K-POP, 2.K-DRAMA,3.뉴스,4.논문")
+    choice = input("")
+    if choice == "1":
+      print("kpop으로 공부해봅시다.")
+      random.shuffle(text["K-POP"])
+      text = text["K-POP"][0]
+      self.kpop(text)
+    elif choice == "2":
+      print("드라마로 공부해봅시다.")
+      self.kdrama(text["K-drama"])
+    elif choice =="3":
+      text = self.news()
+      print("기사내용")
+      print()
+      print(text)
+      print()
+      print("영어번역")
+      print()
+      print(self.translate_text_model(text))
+      print()
+      print("요약문")
+      print()
+      sum = self.change_sum(text)
+      print(sum)
+      print()
+      print("첫번째 객관식 문항입니다. ")
+      print()
+      self.news_make_question_answer(text,sum)
+      print()
+    elif choice == "4":
+      text = text["thetic"]
+      random.shuffle(text)
+      ch = text[0]
+      print("논문의 제목은")
+      print(ch["title"])
+      self.summarize_token(ch["text"])
+
+
+  def kpop(self,train_music):
+    path = train_music['music']
+    title = train_music['title']
+    artist = train_music['artist']
+    output_korea = whisper_model.transcribe(path)['text']
+    music = librosa.load(path,sr=16000)[0]
+    mel = whisper_processor.feature_extractor(music,return_tensors="pt")["input_features"][0]
+    whisper_tlanslate_model.eval()
+    output_english_token = whisper_tlanslate_model.generate(mel.view(1,80,3000))
+    output_english = whisper_processor.tokenizer.batch_decode(output_english_token[0],skip_special_tokens=True)[4:-1]
+    output_english = "".join(output_english)
+    print("노래 재생:")
+    display(Audio(music,rate=16000,autoplay=True))
+    print("타이틀")
+    print(title)
+    print()
+    print("아티스트")
+    print(artist)
+    print()
+    print("음성 인식")
+    print(output_korea)
+    print()
+    print("영어 번역")
+    print(output_english)
+    print()
+    print("듣기 평가 입니다 - 그대로 말하시오.:")
+    sec = len(music) //16000
+    print(sec,"초간 말하시면 됩니다.")
+    user_path = record(sec=sec)
+    user_text = whisper_model.transcribe(user_path)["text"]
+    imbed1 = Sentence_model.encode(user_text)
+    imbed2 = Sentence_model.encode(output_korea)
+    cosine_score = round(cosine_similarity(imbed1.reshape(1,-1),imbed2.reshape(1,-1))[0][0],2)
+    print("당신의 음성은?")
+    if cosine_score >0.8:
+      print("정답입니다.")
+    else:
+      print("오답입니다.")
+    token = class_music_tokenizer(output_english,return_tensors="pt")
+    class_music_model.eval()
+    output = class_music_model(**token)
+    _,topic=torch.max(output["logits"],dim=-1)
+    music_id2label = {0: "Alternative", 1: "Country", 2: "Eletronic Music", 3: "Gospel and Worship Songs",
+                4: "Hip-Hop", 5: "Jazz/Blues", 6: "Pop", 7: "R&B/Soul", 8: "Reggae", 9: "Rock"}
+    music_label2id = {v: k for k, v in music_id2label.items()}
+    answer_genre = music_label2id[music_id2label[topic.item()]]
+
+    print("이 노래에 장르는? ")
+    for i in music_id2label.items():
+      print(i[0]+1,"번: ",i[1])
+    user_input = int(input(""))
+    if user_input == answer_genre+1:
+      print("정답입니다.")
+    else:
+      print("오답입니다.")
+
+  def kdrama(self,text):
+    print("공부하고 싶은 내용을 클릭하세요.")
+    for n,i in enumerate(text):
+      print(n+1,"번: ",i["title"])
+    choice = int(input(""))
+    user = text[choice-1]["text"]
+    print("지문")
+    print(user)
+    print("문장 요약")
+    print()
+    print(self.change_sum(user))
+    print()
+    print("문장 번역")
+    print()
+    print(self.translate_text_model(user))
+    print()
+    print("주관식 문제 입니다.")
+    print(self.drama_make_question(user))
+    question = self.drama_make_question(user)
+    answer_1 = self.drama_make_answer(user,question)
+    print("정답은?")
+    user_anser = input("")
+    token1  = Sentence_model.encode(user_anser).reshape(1,-1)
+    token2 = Sentence_model.encode(answer_1).reshape(1,-1)
+    print(self.find_score(round(cosine_similarity(token1,token2)[0][0],2)))
+    print('객관식 문제 입니다. ')
+    text,List,answer_2 = self.drama_make_mask(user)
+    print(text)
+    print()
+    print("[MASK]빈칸에 들어갈 말은?")
+    print()
+    for n,i in enumerate(List):
+      print(n+1,"번: ",i)
+    answer_ = int(input(""))
+    if answer_ == answer_2:
+      print("정답")
+    else:
+      print("오답")
+
+
+  # 드라마에서 주관식 문제 만드는 함수
+  def drama_make_question(self,text):
+    text = text +"""\n\n<unused0> 240"""
+    raw_input_ids = qa_make_tokenizer.encode(text)
+    input_ids = [qa_make_tokenizer.bos_token_id] + raw_input_ids + [qa_make_tokenizer.eos_token_id]
+    summary_ids =qa_make_model.generate(torch.tensor([input_ids]))
+    return_text= qa_make_tokenizer.decode(summary_ids.squeeze().tolist(), skip_special_tokens=True)
+    return return_text
+
+  #생성된 문제 정답 뽑아주는 함수
+  def drama_make_answer(self,text,question):
+    qustion_text=  question + "[PAD]" + text
+    token = que_tokenizer(qustion_text,return_tensors="pt")
+    que_model.eval()
+    output = que_model(**token)
+    start_ids = output["start_logits"]
+    end_ids = output["end_logits"]
+    start = torch.max(start_ids,dim=-1)[1].item()
+    end = torch.max(end_ids,dim=-1)[1].item()
+    ex = token["input_ids"][0][start:end+1]
+    return que_tokenizer.decode(ex)
+
+  def drama_make_mask(self,text):
+    text_list = text.split(" ")
+    text_list[3] = "[MASK]"
+    text = " ".join(text_list)
+    token = mask_tokenizer(text,return_tensors="pt")
+    index = mask_tokenizer.tokenize(text).index("[MASK]")
+    mask_model.eval()
+    ex = mask_model(**token)
+    ex1 = ex["logits"][0][index+1]
+    top_token = torch.topk(ex1,k=4)[1]
+    List = []
+    for n,i in enumerate(top_token):
+      List.append(mask_tokenizer.decode(i))
+    answer = List[0]
+    random.shuffle(List)
+    answer = List.index(answer) +1
+    return text,List,answer
+
+  # 뉴스 기사
+  def news(self):
+    path = "https://news.naver.com/"
+    hml = requests.get(path)
+    soup = BeautifulSoup(hml.text,"html.parser")
+    p = re.compile("media")
+    num = 0
+    news_path = []
+    news_text = []
+    for i in soup.select("#ct > div > section.main_content > div.main_brick > div > div:nth-child(1) > div.main_brick_item._channel_news_preview_wrapper > div > div > div > a"):
+      path = i.get("href")
+      if p.search(path) == None:
+        num += 1
+        if num <=10:
+          news_path.append(path)
+          news_text.append(i.find('div', class_='cjs_t').get_text())
+          print(num,"번: ",i.find('div', class_='cjs_t').get_text())
+          print()
+    print("확인하고 싶은 뉴스를 선택하세요:")
+    user_answer = int(input(""))
+    choice_path = news_path[user_answer-1]
+    choice_hml = requests.get(choice_path)
+    choice_soup = BeautifulSoup(choice_hml.text,"html.parser")
+    main = choice_soup.select("article")
+    text_box = []
+    for i in main:
+      if i.get_text() != "":
+        for i1 in i:
+          if i1.get_text() != "":
+            text_box.append(i1.get_text())
+    p = re.compile(r"\n")
+    real_text= []
+    for i in text_box:
+      real_text.append(p.sub("",i))
+    text = " ".join(real_text)
+    return text
+
+  # 문제 만들어주고 체크해주는 함수
+  def news_make_question_answer(self,text,sum):
+    token = generate_tokenizer(text,return_tensors="pt")["input_ids"][0][1:-1]
+    num = len(token) // 4
+    print(num)
+    token_box = []
+    for i in range(4):
+      token_box.append(token[num*i:num*i+6])
+    text_box = []
+    for i in token_box:
+      text_box.append(generate_tokenizer.decode(i))
+    change_token = []
+    for i in text_box:
+      encode = generate_tokenizer(i,return_tensors='pt')
+      change_token.append(encode)
+    change_text = []
+    for i in change_token:
+      text = generate_model.generate(input_ids=i["input_ids"],attention_mask = i["attention_mask"])
+      change_text.append(text)
+    final_text = []
+    for i in change_text:
+      text = generate_tokenizer.decode(i[0])
+      final_text.append(text)
+    print("내용과 가장 적절한 문장을 골라주세요")
+    print()
+    sum_token = Sentence_model.encode(sum).reshape(1,-1)
+    final_token_score = []
+    for n,i in enumerate(final_text):
+      print(n+1,"번: ",i)
+      token = Sentence_model.encode(i).reshape(1,-1)
+      score = round(cosine_similarity(sum_token,token)[0][0],2)
+      final_token_score.append(score)
+    answer = np.argmax(np.array(final_token_score)) +1
+    user_ans = int(input(""))
+    if user_ans == answer:
+      print("정답입니다.")
+    else:
+      print("정답이 아닙니다.")
+
+  # 논문 학습
+  def summarize_token(self,text):
+    sum_text = "summarize: " + text
+    input_ids = sum_tokenizer(sum_text,truncation=True,return_tensors='pt')["input_ids"]
+    sum_model.eval()
+    sum_output = sum_model.generate(input_ids)
+    sum_text = sum_tokenizer.decode(sum_output[0])[5:]
+    translate_token = translate_tokenizer(text,truncation=True,return_tensors="pt")["input_ids"]
+    translate_model.eval()
+    translate_output = translate_model.generate(translate_token)
+    translate_text = translate_tokenizer.decode(translate_output[0])[5:-4]
+    generate_token = generate_tokenizer(text,truncation=True,return_tensors="pt")
+    num = len(generate_token["input_ids"][0]) //4
+    token_box = []
+    for i in range(4):
+      input_token_text = generate_token["input_ids"][0,num*i:num*i+6]
+      input_text = generate_model.generate(input_ids=input_token_text.view(1,-1))
+      input_token = generate_tokenizer.decode(input_text[0])
+      token_box.append(input_token)
+    imbed1 = np.array([Sentence_model.encode(sum_text)])
+    score_box = []
+    for i in token_box:
+      imbed2 = np.array([Sentence_model.encode(i)])
+      score = cosine_similarity(imbed1,imbed2)[0][0]
+      score_box.append(score)
+    answer = np.argmax(np.array(score_box)) +1
+    print("논문 내용은 다음과 같습니다.")
+    print()
+    print(text)
+    print()
+    print("영어로 번역하면 다음과 같습니다.")
+    print()
+    print(translate_text)
+    print()
+    print("요약하면 다음과 같습니다.")
+    print()
+    print(sum_text)
+    print()
+    print("객관식 문항입니다. 정답을 고르세요.")
+    for n,i in enumerate(token_box):
+      print(n+1,"번: ",i)
+    user_answer = int(input(""))
+    if user_answer == answer:
+      print('정답입니다.')
+    else:
+      print("오답입니다.")
+
+  # 발음대결
+  def voice_vs(self):
+    question_list = {
+        "팥죽":"앞 집 팥죽은 붉은 팥 풋팥죽이고, 뒷집 콩죽은 햇콩단콩 콩죽, 우리집 깨죽은 검은깨 깨죽인데 사람들은 햇콩 단콩 콩죽 깨죽 죽먹기를 싫어하더라.",
+        "구름":"내가 그린 구름 그림은 새털구름 그린 구름 그림이고, 네가 그린 구름 그림은 깃털구름 그린 구름 그림이다.",}
+    key_list = list(question_list.keys())
+    random.shuffle(key_list)
+    text = question_list[key_list[0]]
+    print("당신이 발음할 대사입니다. ")
+    print(text)
+    print("10초 동안 발음하십시오.")
+    path = record(sec=7)
+    print("끝")
+    print("분석중입니다.")
+    user = whisper_model.transcribe(path)['text']
+    print("당신의 발음입니다.")
+    print(user)
+    imbed1 = Sentence_model.encode(text)
+    imbed2 = Sentence_model.encode(user)
+    score = cosine_similarity(imbed1.reshape(1,-1),imbed2.reshape(1,-1))[0][0]
+    print("당신의 점수 입니다.")
+    print(score)
+    self.voice_rank(score)
+
+  # 발음대결 점수 확인해보기
+  def voice_rank(self,score):
+    with open(f"/content/user_audio/{self.name}.txt","w") as f:
+      f.write(str(score))
+      f.write("\n")
+      f.write(self.name)
+    user_path = glob.glob("/content/user_audio/*")
+    any_dic = {"point":[],"name":[]}
+    for i in user_path:
+      point = self.get_line(i,1)
+      any_name = self.get_line(i,2)
+      any_dic["point"].append(float(point))
+      any_dic["name"].append(any_name)
+    rank = np.argsort(-np.array(any_dic["point"]))[:5]
+    print("현재 랭킹은?")
+    print()
+    for n,i in enumerate(rank):
+      print(n+1,"위: ",any_dic["name"][i],end=", 점수: ")
+      print(any_dic["point"][i])
+
+
+  def selfline(self):
+    user_file = {"style" : "","path" : ''}
+    print("파일을 업로드 하세요.")
+    path = self.save_file()
+    if path[-3:] == "wav" or path[-3:] == "mp3":
+      print("올리신 파일은 음악")
+      user_file["style"]  = "음악"
+      user_file["path"] = path
+    elif path[-3:] == "jpg":
+      print("올리신 파일은 그림")
+      user_file["style"]  = "그림"
+      user_file["path"] = path
+    elif path[-3:] == "txt":
+      print("올리신 파일은 문서")
+      user_file["style"]  = "문서"
+      user_file["path"] = path
+    else:
+      print("파일 형식이 무엇인가요?")
+      pass
+
+    # 파일의 따른 공부 도움
+    if  user_file["style"] =="음악":
+      music = librosa.load(user_file["path"],sr=16000)[0]
+      display(Audio(music,rate=16000,autoplay=True))
+      num = music.shape[0] / 16000
+      time.sleep(num)
+      while 1:
+        print("당신이 원하는 행동은 무엇입니까? ")
+        print("1:음성요약, 2:음성번역, 3:요약문-문서, 4:요약문-대화, 5:요약문 질의응답, exit:나가기")
+        choice = input("")
+        if choice == "1":
+          origin_text = self.transcribe_model(user_file["path"])
+          print()
+        elif choice == "2":
+          text = self.translate_model(user_file["path"])
+          print()
+        elif choice == "3":
+          try:
+            self.change_sum(origin_text)
+            print()
+          except:
+            print("우선 음성번역을 진행해 주시길 바랍니다.")
+        elif choice == "4":
+          try:
+            self.change_sentence(origin_text)
+            print()
+          except:
+            print("우성 음성번역을 진행해 주시길 바랍니다.")
+        elif choice == "5":
+          print(origin_text)
+          print("질문은 무엇입니까?")
+          question = input("")
+          self.mask_answer(question,origin_text)
+          print()
+        elif choice == "exit":
+          break
+        else:
+          print("제대로 입력해주시길 바랍니다.")
+    elif  user_file["style"] =="문서":
+      with open("/content/best_param/audio_file.txt","r") as f:
+        origin_text = f.read()
+      while 1:
+        print("당신이 원하는 행동은 무엇입니까? ")
+        print("1:요약문-문서, 2:요약문-대화, 3:요약문 질의응답, exit:나가기")
+        choice = input("")
+        if choice == "1":
+          self.change_sum(origin_text)
+          print()
+        elif choice == "2":
+          self.change_sentence(origin_text)
+          print()
+        elif choice == "3":
+          print(origin_text)
+          print("질문은 무엇입니까?")
+          question = input("")
+          self.mask_answer(question,origin_text)
+        elif choice =="exit":
+          break
+        else:
+          print("제대로 입력하시길 바랍니다.")
+
+  # 파일 업로드 코드
+  def save_file(self):
+    path = files.upload()
+    path = path.keys()
+    path = str(path)[12:-3]
+    return path
+
+  # 마스크 모델
+  def change_mask(self,text):
+    token = mask_tokenizer(text,truncation=True,return_tensors="pt")
+    index = mask_tokenizer.tokenize(text).index("[MASK]")
+    mask_model.eval()
+    ex = mask_model(**token)
+    ex1 = ex["logits"][0][index+1]
+    top_token = torch.topk(ex1,k=5)[1]
+    for i in top_token:
+      print(mask_tokenizer.decode(token["input_ids"][0][1:index+1]),mask_tokenizer.decode(i),mask_tokenizer.decode(token["input_ids"][0][index+2:-1]))
+
+  # 대화문 요약모델
+  def change_sentence(self,text):
+    text = "[BOS]"+"[SEP]".join(text) + "[BOS]"
+    ex_token = sentence_tokenizer(text,truncation=True,return_tensors="pt")
+    sentence_model.eval()
+    output = sentence_model.generate(ex_token["input_ids"])
+    print(sentence_tokenizer.decode(output[0])[6:-5])
+
+  # 문장 요약 모델
+  def change_sum(self,text):
+    prefix = "summarize: "
+    ex_text = prefix + text
+    ex_token = sum_tokenizer(ex_text,truncation=True,return_tensors="pt")["input_ids"]
+    sum_model.eval()
+    token_ex = sum_model.generate(ex_token)
+    return sum_tokenizer.decode(token_ex[0])[5:-4]
+
+  # 질의 응답 모델
+  def mask_answer(self,question,que):
+    ex_text = que + "[SEP]" + question
+    ex_token = que_tokenizer(ex_text,truncation=True,return_tensors="pt")
+    que_model.eval()
+    output = que_model(**ex_token)
+    start = torch.max(output["start_logits"],dim=-1)[1]
+    end = torch.max(output["end_logits"],dim=-1)[1]
+    output = ex_token["input_ids"][0][start:end+1]
+    print(que_tokenizer.decode(output))
+
+  #음성 요약 모델
+  def transcribe_model(self,path):
+    text = whisper_model.transcribe(path)["text"]
+    print(text)
+    return text
+
+  #음성 변화 모델
+  def translate_model(self,path):
+    audio = whisper.load_audio(path)
+    audio = whisper.pad_or_trim(audio)
+    mel = whisper.log_mel_spectrogram(audio)
+    whisper_tlanslate_model.eval()
+    text = whisper_processor.tokenizer.batch_decode(whisper_tlanslate_model.generate(mel.view(1,80,3000)))[0][58:-13]
+    print(text)
+    return text
+
+  #기계 번역 모델
+  def translate_text_model(self,text):
+    token = translate_tokenizer(text,max_length=128,padding="max_length",truncation=True,return_tensors='pt')
+    max_len = len(token["input_ids"][0])
+    translate_model.eval()
+    output = translate_model.generate(token["input_ids"],min_length=max_len-5,max_length=max_len+5)
+    return translate_tokenizer.decode(output[0])[5:-4]
+
+
+  def question(self):
+    print("당신의 질문 선생님을 선택하세요. ")
+    print("1: 하나부터 열까지 알려주는 선생님, 2: 피드백을 지속적으로 주는 선생님, 3: 깊은 토론을 해주는 선생님")
+    print()
+    choice = input("")
+    if choice == "1":
+      print("level 1 선생님입니다. 나가기는 exit")
+      while 1:
+        text = input("")
+        if text != "exit":
+          print(self.beginer_teacher(text, model="gpt-3.5-turbo"))
+        else:
+          break
+    elif choice == "2":
+      print("level 2 선생님입니다. 나가기는 exit")
+      while 1:
+        text = input("")
+        if text != "exit":
+          print(self.planner_teacher(text, model="gpt-3.5-turbo"))
+        else:
+          break
+    elif choice == "3":
+      print("level 3 선생님입니다. 나가기는 exit")
+      while 1:
+        text = input("")
+        if text != "exit":
+          print(self.debate_teacher(text, model="gpt-3.5-turbo"))
+        else:
+          break
+
+  def beginer_teacher(self,text, model="gpt-3.5-turbo"):
+    prompt = """
+    당신은 외국인 학생에게 한국어를 가르치는 \ 선생님 입니다. \
+    당신의 임무는 학생과 대화하고 \ 잘못된 문장을 알려주는 것입니다. \
+
+    <tag>
+    당신이 고려해야 할 사항 \
+    - 학생의 한국어 실력은 초등학생 수준입니다. \
+    - 학생의 잘못된 문법 or 문장을 하나 하나 살펴봐야 합니다. \
+    </tag>
+
+    <tag>
+    학생의 문법이나 문장이 틀렸을 때 해야할 행동입니다. \
+    1. 올바른 문법 or 문장을 이야기 하십시오. \
+    2. 영어로 추가적인 설명을 하십시오. \
+    </tag>
+
+    <tag>
+    학생의 문법과 문장이 맞을 때 \ 이렇게 행동해야 합니다. \
+    1. 학생의 말에 정확하게 대답하기.\
+    </tag>
+    """
+    messages = [{"role": "system", "content": prompt},
+                {"role":"user","content":text}]
+    response = openai.ChatCompletion.create(
+        model=model,
+        messages=messages,
+        temperature=0
+    )
+    return response.choices[0].message["content"]
+
+  def planner_teacher(self,text,model="gpt-3.5-turbo"):
+    prompt = """
+    당신은 외국인 학생에게 한국어 공부를 도와주는 선생님 입니다. \
+    당신은 3중 backticks 안에 필요능력 중 랜덤으로 1개를 참고하여 \
+    1문제를 생각하십시오. \
+
+
+    당신은 3중 backticks 안에 문장 처럼 표현하십시오. 단 문제를 낼때는 답을 알려주면 안되고 \ 질문에
+    답했을때만 알려주십시오. \
+    ```
+      1. 저는 한국어 첨삭 선생님 입니다.
+      2. 당신의 부족한 점을 확인해 보겠습니다.
+      3. 문제: ...
+    ```
+
+    문제에 답변에 잘못 대답했을때는 참고한 필요능력을 이야기 하고 \ 키울 수 있는 방법을 설명합니다. \
+
+    문제에 제대로 답변 했을때는 칭찬하고 \ 새로운 문제를 제시합니다.
+    ```
+    필요 능력:
+      - 한국어 문자(한글)의 발음을 배워 \ 정확하게 읽을 수 있는니다. \
+      - 한국어의 기본 구조를 익혀서 \ 짧은 문장을 이해하고 \ 사용할 수 있습니다. \
+      - 인사하기, 자기소개하기, 음식 주문하기, 물건사기, 전화하기, 대중교통 이용하기, 초대하기 등 일상생활에서 필요한 언어 기능과 \
+        과제를 중심으로 한국어를 배울 수 있습니다. \
+      - 한국 음식, 호칭 등 일상생활에서 필요한 기본적인 한국 문화를 \ 배울 수 있습니다. \
+      - 한글의 음운 규칙을 익혀 \  좀 더 자연스럽게 문장을 읽고 \ 말할 수 있습니다. \
+      - 짧은 문장들이 연결, 확장된 \ 비교적 긴 문장들을 이해하고 \ 사용할 수 있습니다. \
+      - 가족, 취미, 운동, 계절, 여행, 경험 등 친숙한 주제들에 대해 묻고 \ 대답할 수 있습니다. \
+      - 반말, 높임말 등을 배워 \ 담화 상황에 맞게 구사할 수 있습니다. \
+      - 설날 음식, 사물놀이 등 한국 문화에 대한 재미있는 내용을 체험하고 \ 배울 수 있습니다. \
+      - 충분한 생활 어휘, 한자어, 관용 표현을 배워서 \ 일상 회화를 자유롭게 할 수 있습니다. \
+      - 방 구하기, 이사하기, 텔레비전 고장 수리하기, 휴일 계획하기, 공원 이용하기, 여행 가기, 연극하기 등 다양한 주제를 표현할 수 있습니다. \
+      - 한국 요리 실습, 문화 시설 견학, 시 감상 등을 통해 한국 문화를 이해할 수 있습니다. \
+      - 학업과 직업 활동에 필요한 언어능력을 \ 키울 수 있습니다. \
+      - 사회, 문화, 역사, 소설 등 다양한 주제에 대한 글을 읽고 \ 이야기할 수 있습니다. \
+      - 비교적 길게 자신의 생각을 논리적으로 표현할 수 있는 능력을 키울 수 있습니다. \
+      - 현장 체험 학습을 가거나 \ 한국 신화, 전래 소설, 전통 노래를 배워서 \ 한국 문화를 이해할 수 있습니다. \
+      - 학문 연구와 회사 업무에 필요한 구체적 언어능력을 강화시킬 수 있습니다. \
+      - 정치, 사회, 경제, 문화 주제에 대한 다양한 토론 학습에 참여할 수 있습니다. \
+      - 다양한 주제를 연구하여 논문 형식으로 발표를 하면서 전문적인 지식과 토론 역량을 키울 수 있습니다. \
+      - 대학 강의 참여, 회사 업무 수행 등에 필요한 언어 능력을 배양할 수 있습니다. \
+      - 토론, 발표 등 공적인 상황에서 자신의 의사를 논리적으로 표현할 수 있는 능력을 키울 수 있습니다. \
+      - 신문, 방송 등 실제 자료를 이용한 듣기/읽기/토론 연습을 할 수 있습니다. \
+      - 방송 다큐멘터리 등을 활용하여 한국 역사를 배울 수 있습니다. \
+      - 인터넷을 이용하여 자유롭게 검색을 하고 글을 올릴 수 있습니다. \
+      - 대학 및 대학원 수업, 직장 생활에 필요한 언어 능력을 키울 수 있습니다. \
+      - 대학 및 대학원 수업에 필요한 보고서 쓰기 및 다양한 글쓰기를 배울 수 있습니다. \
+      - 저서, 논문, 인터넷 등을 이용하여 학술 과제 수행에 필요한 자료를 찾아내는 능력을 키울 수 있습니다. \
+      - 직장 생활에 필요한 여러 가지 문화적 배경을 이해하고 관련된 한국어 표현을 배울 수 있습니다. \
+    ```
+    """
+    messages = [{"role": "system", "content": prompt},
+                {"role":"user","content":text}]
+    response = openai.ChatCompletion.create(
+        model=model,
+        messages=messages,
+        temperature=0
+    )
+    return response.choices[0].message["content"]
+  def debate_teacher(self,text):
+    prompt = """
+    당신은 많은 지식을 가지고 있는 \ 교수입니다. \
+    당신은 임무는 학생에 관심사를 듣고 \ 관련된 질문을 하고 \ 토론을 진행해야 합니다. \
+
+    <tag>
+    당신이 고려할 사항입니다.
+      - 학생에 관심사를 우선 파악 하십시오. (예시: 안녕하세요 어떤 관심사를 가지고 있나요?)
+      - 학생에 관심사와 연관성이 깊은 질문을 하십시오 \
+      - 학생이 관심사를 말한 후 \ 이에 대한 토론 주제를 말하시오. \
+      - 학생이 다른 관심사를 표시 할 때까지 \ 관심사를 바꾸지 마십시오. \
+      - 학생이 영어로 말할때 \ 당신은 대답을 영어와 이를 한국어로 번역한 글을 함께 제출하십시오. \
+      - 한국어로 다시 말하면 \ 한국어로 대답하시오. \
+    </tag>
+
+
+    """
+    messages = [{"role": "system", "content": prompt},
+                {"role":"user","content":text}]
+    response = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=messages,
+        temperature=0
+    )
+    return response.choices[0].message["content"]
+
+%cd /content
