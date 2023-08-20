@@ -554,7 +554,7 @@ class Koeic():
     input_ids = sum_tokenizer(sum_text,truncation=True,return_tensors='pt')["input_ids"]
     sum_model.eval()
     sum_output = sum_model.generate(input_ids)
-    sum_text = sum_tokenizer.decode(sum_output[0])[5:]
+    sum_text = sum_tokenizer.decode(sum_output[0])[5:-4]
     translate_token = translate_tokenizer(text,truncation=True,return_tensors="pt")["input_ids"]
     translate_model.eval()
     translate_output = translate_model.generate(translate_token)
