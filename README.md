@@ -1,8 +1,3 @@
-김동완 (Logan Kim)
+ready_question -> ready_model -> main_code 후  start를 이용해서 시행하시면 됩니다. 
 
-정보:
-대학교: (서울)건국대학교
-
-수상경력:
-빅데
-
+ready_question 에서 문제를 수정할 수 있습니다. 
