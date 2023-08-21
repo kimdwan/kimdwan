@@ -98,7 +98,7 @@ whisper_tlanslate_model = WhisperForConditionalGeneration.from_pretrained(whispe
 whisper_processor = WhisperProcessor.from_pretrained(whisper_path,language="ko", task="transcribe")
 
 # gpt3.5 모델
-key = "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"
+key = ""
 openai.api_key = key
 
 # 문장생성용 모델
