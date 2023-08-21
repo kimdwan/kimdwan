@@ -1,8 +1,8 @@
+%cd /content
 import os
 # 유저 랭킹 저장 하는 저장소
 os.makedirs("user_point")
 os.makedirs('user_audio')
-
 # 메인코드
 import random
 import time
@@ -320,13 +320,31 @@ class Koeic():
       print()
       print("요약문")
       print()
-      sum = self.change_sum(text)
+      sum = self.change_sum(text.strip())
       print(sum)
       print()
       print("첫번째 객관식 문항입니다. ")
       print()
       self.news_make_question_answer(text,sum)
       print()
+      print("두번째 객관식 문항입니다. ")
+      ans_num, label_dic = self.news_class(text)
+      num_list = list(range(7))
+      num_list.remove(ans_num)
+      random.shuffle(num_list)
+      nums = num_list[:3]
+      nums.append(ans_num)
+      random.shuffle(nums)
+      aaannnsss = nums.index(ans_num)
+      print("이 뉴스의 장르로 알맞은 것은? ")
+      for n,i in enumerate(nums):
+        print(n+1,"번: ",label_dic[i])
+      userans =int(input(""))
+      if userans == aaannnsss+1:
+        print("정답입니다.")
+      else:
+        print("오답입니다.")
+
     elif choice == "4":
       text = text["thetic"]
       random.shuffle(text)
@@ -456,7 +474,9 @@ class Koeic():
 
   def drama_make_mask(self,text):
     text_list = text.split(" ")
-    text_list[3] = "[MASK]"
+    number = len(text_list)
+    n = random.randint(0,number)
+    text_list[n] = "[MASK]"
     text = " ".join(text_list)
     token = mask_tokenizer(text,return_tensors="pt")
     index = mask_tokenizer.tokenize(text).index("[MASK]")
@@ -547,6 +567,18 @@ class Koeic():
       print("정답입니다.")
     else:
       print("정답이 아닙니다.")
+
+  # 뉴스 분류문제
+  def news_class(self,text):
+    token = news_class_tokenizer(text,return_tensors="pt",truncation=True)
+    news_class_model.eval()
+    output = news_class_model(**token)
+    _, cls = torch.max(output["logits"],dim=-1)
+    news_id2label = news_class_model.config.id2label
+    news_label2id = news_class_model.config.label2id
+    return cls.item() , news_id2label
+
+
 
   # 논문 학습
   def summarize_token(self,text):
@@ -937,5 +969,3 @@ class Koeic():
         temperature=0
     )
     return response.choices[0].message["content"]
-
-%cd /content
